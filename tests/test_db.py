@@ -23,4 +23,5 @@ def test_create_user_should_create_user_in_db(session, mock_db_time):
             'email': 'john_doe@example.com',
             'password': 'securepassword',
             'created_at': time,
+            'updated_at': time,
         }
