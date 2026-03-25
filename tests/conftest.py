@@ -10,10 +10,12 @@ from sqlalchemy.pool import StaticPool
 from fastapi_zero.app import app
 from fastapi_zero.database import get_session
 from fastapi_zero.models import User, table_registry
+from fastapi_zero.security import get_password_hash
 
 
 @pytest.fixture
 def client(session):
+
     def get_session_override():
         return session
 
@@ -26,6 +28,7 @@ def client(session):
 
 @pytest.fixture
 def session():
+
     engine = create_engine(
         'sqlite:///:memory:',
         connect_args={'check_same_thread': False},
@@ -37,25 +40,44 @@ def session():
         yield session
 
     table_registry.metadata.drop_all(engine)
+
     engine.dispose()
 
 
 @pytest.fixture
+def token(client, user):
+
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clear_password},
+    )
+
+    return response.json()['access_token']
+
+
+@pytest.fixture
 def user(session):
+
+    password = 'securepassword'
+
     user = User(
         username='john_doe',
         email='john_doe@example.com',
-        password='securepassword',
+        password=get_password_hash(password),
     )
+
     session.add(user)
     session.commit()
     session.refresh(user)
+
+    user.clear_password = password
 
     return user
 
 
 @pytest.fixture
 def mock_db_time():
+
     return _mock_db_time
 
 
@@ -63,8 +85,10 @@ def mock_db_time():
 def _mock_db_time(*, model, time=datetime(2024, 1, 1)):
 
     def fake_time_hook(mapper, connection, target):
+
         if hasattr(target, 'created_at'):
             target.created_at = time
+
         if hasattr(target, 'updated_at'):
             target.updated_at = time
 
