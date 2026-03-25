@@ -1,13 +1,15 @@
 from dataclasses import asdict
 
+import pytest
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi_zero import database
 from fastapi_zero.models import User
 
 
-def test_create_user_should_create_user_in_db(session, mock_db_time):
+@pytest.mark.asyncio
+async def test_create_user_should_create_user_in_db(session, mock_db_time):
     with mock_db_time(model=User) as time:
         new_user = User(
             username='john_doe',
@@ -16,9 +18,11 @@ def test_create_user_should_create_user_in_db(session, mock_db_time):
         )
 
         session.add(new_user)
-        session.commit()
+        await session.commit()
 
-        user = session.scalar(select(User).where(User.username == 'john_doe'))
+        user = await session.scalar(
+            select(User).where(User.username == 'john_doe')
+        )
         assert asdict(user) == {
             'id': 1,
             'username': 'john_doe',
@@ -29,15 +33,13 @@ def test_create_user_should_create_user_in_db(session, mock_db_time):
         }
 
 
-def test_get_session_should_return_session(session, monkeypatch):
-
-    monkeypatch.setattr(database, 'engine', session.get_bind())
+@pytest.mark.asyncio
+async def test_get_session_should_return_session():
 
     session_generator = database.get_session()
 
-    db_session = next(session_generator)
+    db_session = await anext(session_generator)
 
-    assert isinstance(db_session, Session)
-    assert db_session.bind is session.get_bind()
+    assert isinstance(db_session, AsyncSession)
 
-    session_generator.close()
+    await session_generator.aclose()
