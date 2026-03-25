@@ -53,8 +53,7 @@ addopts = '-p no:warnings'
 extend-exclude = ['*.md']
 
 [tool.taskipy.tasks]
-clean = 'powershell -Command Remove-Item -Recurse -Force **/__pycache__'
-act = 'powershell -Command .venv\Scripts\Activate.ps1'
+clean = 'powershell -Command "Get-ChildItem -Path . -Directory -Filter __pycache__ -Recurse | Remove-Item -Recurse -Force"'
 pre_lint = 'typos'
 lint = 'ruff check'
 pre_format = 'ruff check --fix'
