@@ -18,8 +18,8 @@ services:
       retries: 10
   
   task_manager_app:
-    image: task_manager
-    container_name: task_manager
+    image: task_manager_app:latest
+    container_name: task_manager_app
     entrypoint: ./entrypoint.sh
     build: .
     ports:
