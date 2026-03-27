@@ -1,12 +1,16 @@
 services:
   fastzero_database:
     image: postgres:16
+    container_name: fastzero_database
     volumes:
-      - db_data:/var/lib/postgresql/
+      - db_data:/var/lib/postgresql/data/
+    restart: unless-stopped
     ports:
       - "5433:5432"
     env_file:
       - .env.db
+    networks:
+      - fastapi_zero_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -15,16 +19,23 @@ services:
   
   fastzero_app:
     image: fastapi_zero
+    container_name: fastapi_zero:latest
     entrypoint: ./entrypoint.sh
     build: .
     ports:
       - "8001:8000"
+    restart: unless-stopped
     depends_on:
       fastzero_database:
         condition: service_healthy
     env_file:
       - .env
       - .env.db
-    
+    networks:
+      - fastapi_zero_network
 volumes:
   db_data:
+
+networks:
+  fastapi_zero_network:
+    driver: bridge
