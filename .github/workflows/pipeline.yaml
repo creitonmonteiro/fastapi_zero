@@ -108,7 +108,6 @@ jobs:
 
       - name: Create app and database secrets
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           ALGORITHM: ${{ secrets.ALGORITHM }}
           ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
@@ -116,6 +115,7 @@ jobs:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
+          DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-service:5432/${POSTGRES_DB}"
           kubectl -n task-manager create secret generic task-manager-secrets \
             --from-literal=DATABASE_URL="$DATABASE_URL" \
             --from-literal=SECRET_KEY="$SECRET_KEY" \
