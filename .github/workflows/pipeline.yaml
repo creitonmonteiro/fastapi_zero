@@ -15,6 +15,7 @@ env:
   K8S_NAMESPACE: task-manager
   K8S_DEPLOYMENT: task-manager-app
   K8S_CONTAINER: task-manager-app
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
@@ -105,6 +106,26 @@ jobs:
           kubectl cluster-info
           kubectl get ns
 
+      - name: Create app and database secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ALGORITHM: ${{ secrets.ALGORITHM }}
+          ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          kubectl -n task-manager create secret generic task-manager-secrets \
+            --from-literal=DATABASE_URL="$DATABASE_URL" \
+            --from-literal=SECRET_KEY="$SECRET_KEY" \
+            --from-literal=ALGORITHM="$ALGORITHM" \
+            --from-literal=ACCESS_TOKEN_EXPIRE_MINUTES="$ACCESS_TOKEN_EXPIRE_MINUTES" \
+            --from-literal=POSTGRES_DB="$POSTGRES_DB" \
+            --from-literal=POSTGRES_USER="$POSTGRES_USER" \
+            --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Apply app manifests
         run: |
           kubectl apply -f k8s-namespace.yaml
@@ -133,4 +154,4 @@ jobs:
         run: |
           kubectl -n "${{ env.K8S_NAMESPACE }}" set image deployment/"${{ env.K8S_DEPLOYMENT }}" \
             "${{ env.K8S_CONTAINER }}"="${{ env.IMAGE_NAME }}:${{ needs.build_and_push.outputs.image_tag }}"
-          kubectl -n "${{ env.K8S_NAMESPACE }}" rollout status deployment/"${{ env.K8S_DEPLOYMENT }}" --timeout=180s
+          kubectl -n "${{ env.K8S_NAMESPACE }}" rollout status deployment/"${{ env.K8S_DEPLOYMENT }}" --timeout=600s

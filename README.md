@@ -14,6 +14,9 @@ O projeto possui pipeline completo em `.github/workflows/pipeline.yaml` com 3 es
 - `SECRET_KEY`
 - `ALGORITHM`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
 - `KUBE_CONFIG_DATA` (kubeconfig em base64)
