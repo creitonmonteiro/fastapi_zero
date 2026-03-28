@@ -1,0 +1,299 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: task-manager
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus-ds
+        type: prometheus
+        access: proxy
+        url: http://prometheus-service:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: task-manager
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: Task Manager Dashboards
+        orgId: 1
+        folder: Task Manager
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-task-manager
+  namespace: task-manager
+data:
+  task-manager-overview.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+          "targets": [
+            {
+              "expr": "sum by (handler, method) (rate(http_requests_total[1m]))",
+              "legendFormat": "{{method}} {{handler}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Requests per Minute",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+          "targets": [
+            {
+              "expr": "process_resident_memory_bytes",
+              "legendFormat": "memory",
+              "refId": "A"
+            }
+          ],
+          "title": "Process Memory",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"task-manager\",pod!=\"\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Pod CPU Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"task-manager\",pod!=\"\"}) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Pod Memory Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{id=\"/\",interface!=\"lo\"}[5m])) by (interface)",
+              "legendFormat": "{{interface}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Node Network RX",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{id=\"/\",interface!=\"lo\"}[5m])) by (interface)",
+              "legendFormat": "{{interface}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Node Network TX",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 7,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(rate(node_disk_read_bytes_total[5m])) by (device)",
+              "legendFormat": "read {{device}}",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(node_disk_written_bytes_total[5m])) by (device)",
+              "legendFormat": "write {{device}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Node Disk I/O",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "cores"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 8,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"task-manager\",resource=\"cpu\"})",
+              "legendFormat": "CPU Requested",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"task-manager\",resource=\"cpu\"})",
+              "legendFormat": "CPU Limit",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"task-manager\",pod!=\"\"}[5m]))",
+              "legendFormat": "CPU Usage",
+              "refId": "C"
+            }
+          ],
+          "title": "Cluster CPU Request / Limit / Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+          "id": 9,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"task-manager\",resource=\"memory\"})",
+              "legendFormat": "Memory Requested",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"task-manager\",resource=\"memory\"})",
+              "legendFormat": "Memory Limit",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"task-manager\",pod!=\"\"})",
+              "legendFormat": "Memory Usage",
+              "refId": "C"
+            }
+          ],
+          "title": "Cluster Memory Request / Limit / Usage",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["task-manager"],
+      "templating": {"list": []},
+      "time": {"from": "now-15m", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Task Manager Overview",
+      "uid": "task-manager-overview",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: task-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:12.0.2
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+          ports:
+            - containerPort: 3000
+              name: web
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yml
+              subPath: datasource.yml
+            - name: grafana-dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+              subPath: dashboards.yml
+            - name: grafana-dashboard-task-manager
+              mountPath: /var/lib/grafana/dashboards/task-manager-overview.json
+              subPath: task-manager-overview.json
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: grafana-dashboard-task-manager
+          configMap:
+            name: grafana-dashboard-task-manager
+        - name: grafana-storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: task-manager
+spec:
+  type: NodePort
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30300
+      protocol: TCP
+      name: web

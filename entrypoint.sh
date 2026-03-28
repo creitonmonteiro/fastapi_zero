@@ -2,7 +2,9 @@
 
 set -e
 
-export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@task_manager_database:5432/${POSTGRES_DB}"
+if [ -z "$DATABASE_URL" ]; then
+	export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-service:5432/${POSTGRES_DB}"
+fi
 
 poetry run alembic upgrade head
 
