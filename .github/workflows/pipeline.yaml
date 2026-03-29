@@ -3,8 +3,34 @@ name: Pipeline
 on:
   push:
     branches: [main]
+    paths:
+      - 'task_manager/**'
+      - 'tests/**'
+      - 'migrations/**'
+      - 'loadtests/**'
+      - 'monitoring/**'
+      - 'Dockerfile'
+      - 'entrypoint.sh'
+      - 'compose.yml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'alembic.ini'
+      - 'k8s-*.yaml'
   pull_request:
     branches: [main]
+    paths:
+      - 'task_manager/**'
+      - 'tests/**'
+      - 'migrations/**'
+      - 'loadtests/**'
+      - 'monitoring/**'
+      - 'Dockerfile'
+      - 'entrypoint.sh'
+      - 'compose.yml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'alembic.ini'
+      - 'k8s-*.yaml'
   workflow_dispatch:
 
 concurrency:
