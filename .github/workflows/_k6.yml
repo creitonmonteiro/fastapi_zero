@@ -1,0 +1,162 @@
+name: K6 Load Test
+
+on:
+  workflow_call:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_DATA" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Prepare and run k6 load test inside cluster
+        run: |
+          kubectl -n task-manager delete job k6-users-load --ignore-not-found=true
+          kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
+          kubectl -n task-manager delete pod -l job-name=k6-users-load --ignore-not-found=true
+          kubectl -n task-manager delete configmap k6-users-script --ignore-not-found=true
+
+          if kubectl -n task-manager get pvc k6-results-pvc >/dev/null 2>&1; then
+            deleting=$(kubectl -n task-manager get pvc k6-results-pvc -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true)
+            if [ -n "$deleting" ]; then
+              echo "k6-results-pvc is terminating, forcing cleanup"
+              kubectl -n task-manager patch pvc k6-results-pvc --type=merge -p '{"metadata":{"finalizers":[]}}' || true
+              kubectl -n task-manager delete pvc k6-results-pvc --ignore-not-found=true || true
+              kubectl -n task-manager wait --for=delete pvc/k6-results-pvc --timeout=180s || true
+            fi
+          fi
+
+          kubectl -n task-manager create configmap k6-users-script \
+            --from-file=users-create-get.js=loadtests/k6/users-create-get.js
+          kubectl apply -f monitoring/k6-users-pvc.yaml
+          kubectl apply -f monitoring/k6-users-job.yaml
+
+          # Some storage classes use WaitForFirstConsumer and only bind after pod scheduling.
+          kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Bound pvc/k6-results-pvc --timeout=300s || true
+          pvc_phase=$(kubectl -n task-manager get pvc k6-results-pvc -o jsonpath='{.status.phase}' 2>/dev/null || true)
+          if [ "$pvc_phase" != "Bound" ]; then
+            echo "k6-results-pvc phase is $pvc_phase"
+            kubectl -n task-manager describe pvc k6-results-pvc || true
+          fi
+
+          # Guard against short API timing gaps/race conditions.
+          for i in {1..18}; do
+            if kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+
+          if ! kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+            echo "k6 job not found after apply"
+            kubectl -n task-manager get jobs
+            exit 1
+          fi
+
+          for i in {1..90}; do
+            complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+            failed=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+
+            if ! kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+              echo "k6 job disappeared while waiting"
+              kubectl -n task-manager get jobs
+              exit 1
+            fi
+
+            if [ "$complete" = "True" ]; then
+              echo "k6 job completed successfully"
+              break
+            fi
+
+            if [ "$failed" = "True" ]; then
+              echo "k6 job failed"
+              kubectl -n task-manager describe job k6-users-load
+              kubectl -n task-manager get pods -l job-name=k6-users-load -o wide
+              kubectl -n task-manager logs -l job-name=k6-users-load --tail=200 || true
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+          if [ "$complete" != "True" ]; then
+            echo "k6 job did not complete within expected time"
+            kubectl -n task-manager describe job k6-users-load
+            kubectl -n task-manager get pods -l job-name=k6-users-load -o wide
+            kubectl -n task-manager logs -l job-name=k6-users-load --tail=200 || true
+            exit 1
+          fi
+
+      - name: Collect k6 results from PVC via helper pod
+        run: |
+          mkdir -p k6-results
+          kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
+          cat > /tmp/k6-helper-pod.yaml <<'EOF'
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: k6-results-helper
+            namespace: task-manager
+          spec:
+            containers:
+            - name: helper
+              image: busybox:1.36
+              command:
+              - /bin/sh
+              - -c
+              - sleep 300
+              volumeMounts:
+              - name: k6-results
+                mountPath: /results
+            volumes:
+            - name: k6-results
+              persistentVolumeClaim:
+                claimName: k6-results-pvc
+            restartPolicy: Never
+          EOF
+
+          kubectl apply -f /tmp/k6-helper-pod.yaml
+          kubectl -n task-manager wait --for=condition=Ready pod/k6-results-helper --timeout=120s
+
+          kubectl -n task-manager cp k6-results-helper:/results/summary.json k6-results/summary.json
+          kubectl -n task-manager cp k6-results-helper:/results/k6.log k6-results/k6.log
+
+          test -s k6-results/summary.json
+          test -s k6-results/k6.log
+
+          kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
+
+      - name: Convert k6 summary JSON to HTML
+        run: |
+          test -s k6-results/summary.json
+          node loadtests/k6/generate-report.js
+          test -s k6-results/summary.html
+
+      - name: Upload k6 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-users-report-${{ github.run_id }}
+          path: |
+            k6-results/summary.json
+            k6-results/summary.html
+            k6-results/k6.log
+          if-no-files-found: error
