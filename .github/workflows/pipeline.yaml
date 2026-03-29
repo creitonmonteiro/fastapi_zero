@@ -180,8 +180,15 @@ jobs:
           kubectl -n task-manager create configmap k6-users-script \
             --from-file=users-create-get.js=loadtests/k6/users-create-get.js
           kubectl apply -f monitoring/k6-users-pvc.yaml
-          kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Bound pvc/k6-results-pvc --timeout=180s
           kubectl apply -f monitoring/k6-users-job.yaml
+
+          # Some storage classes use WaitForFirstConsumer and only bind after pod scheduling.
+          kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Bound pvc/k6-results-pvc --timeout=300s || true
+          pvc_phase=$(kubectl -n task-manager get pvc k6-results-pvc -o jsonpath='{.status.phase}' 2>/dev/null || true)
+          if [ "$pvc_phase" != "Bound" ]; then
+            echo "k6-results-pvc phase is $pvc_phase"
+            kubectl -n task-manager describe pvc k6-results-pvc || true
+          fi
 
           # Guard against short API timing gaps/race conditions.
           for i in {1..18}; do
