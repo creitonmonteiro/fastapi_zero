@@ -55,179 +55,138 @@ data:
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
           "targets": [
             {
-              "expr": "sum by (handler, method) (rate(http_requests_total[1m]))",
+              "expr": "sum by (handler, method) (rate(http_requests_total{job=\"task-manager-app\"}[1m]))",
               "legendFormat": "{{method}} {{handler}}",
               "refId": "A"
             }
           ],
-          "title": "Requests per Minute",
+          "title": "App Requests per Minute",
           "type": "timeseries"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "bytes"}, "overrides": []},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "s"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
           "id": 2,
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
           "targets": [
             {
-              "expr": "process_resident_memory_bytes",
-              "legendFormat": "memory",
+              "expr": "histogram_quantile(0.95, sum by (le, handler, method) (rate(http_request_duration_seconds_bucket{job=\"task-manager-app\"}[5m])))",
+              "legendFormat": "{{method}} {{handler}}",
               "refId": "A"
             }
           ],
-          "title": "Process Memory",
+          "title": "App p95 Latency",
           "type": "timeseries"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "percentunit"}, "overrides": []},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "bytes"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
           "id": 3,
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
           "targets": [
             {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"task-manager\",pod!=\"\"}[5m])) by (pod)",
-              "legendFormat": "{{pod}}",
+              "expr": "sum(process_resident_memory_bytes{job=\"task-manager-app\"})",
+              "legendFormat": "app memory",
               "refId": "A"
             }
           ],
-          "title": "Pod CPU Usage",
+          "title": "App Memory Usage",
           "type": "timeseries"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "bytes"}, "overrides": []},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
           "id": 4,
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
           "targets": [
             {
-              "expr": "sum(container_memory_working_set_bytes{namespace=\"task-manager\",pod!=\"\"}) by (pod)",
-              "legendFormat": "{{pod}}",
+              "expr": "sum(up{job=\"task-manager-app\"})",
+              "legendFormat": "app up targets",
               "refId": "A"
             }
           ],
-          "title": "Pod Memory Usage",
+          "title": "App Targets Up",
           "type": "timeseries"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "percentunit"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
           "id": 5,
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
           "targets": [
             {
-              "expr": "sum(rate(container_network_receive_bytes_total{id=\"/\",interface!=\"lo\"}[5m])) by (interface)",
-              "legendFormat": "{{interface}}",
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"task-manager\",pod=~\"postgres-.*\",container=\"postgres\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
               "refId": "A"
             }
           ],
-          "title": "Node Network RX",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
-          "id": 6,
-          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
-          "targets": [
-            {
-              "expr": "sum(rate(container_network_transmit_bytes_total{id=\"/\",interface!=\"lo\"}[5m])) by (interface)",
-              "legendFormat": "{{interface}}",
-              "refId": "A"
-            }
-          ],
-          "title": "Node Network TX",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "Bps"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
-          "id": 7,
-          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
-          "targets": [
-            {
-              "expr": "sum(rate(node_disk_read_bytes_total[5m])) by (device)",
-              "legendFormat": "read {{device}}",
-              "refId": "A"
-            },
-            {
-              "expr": "sum(rate(node_disk_written_bytes_total[5m])) by (device)",
-              "legendFormat": "write {{device}}",
-              "refId": "B"
-            }
-          ],
-          "title": "Node Disk I/O",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "cores"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
-          "id": 8,
-          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
-          "targets": [
-            {
-              "expr": "sum(kube_pod_container_resource_requests{namespace=\"task-manager\",resource=\"cpu\"})",
-              "legendFormat": "CPU Requested",
-              "refId": "A"
-            },
-            {
-              "expr": "sum(kube_pod_container_resource_limits{namespace=\"task-manager\",resource=\"cpu\"})",
-              "legendFormat": "CPU Limit",
-              "refId": "B"
-            },
-            {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"task-manager\",pod!=\"\"}[5m]))",
-              "legendFormat": "CPU Usage",
-              "refId": "C"
-            }
-          ],
-          "title": "Cluster CPU Request / Limit / Usage",
+          "title": "DB CPU Usage",
           "type": "timeseries"
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
           "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "bytes"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
-          "id": 9,
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
           "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
           "targets": [
             {
-              "expr": "sum(kube_pod_container_resource_requests{namespace=\"task-manager\",resource=\"memory\"})",
-              "legendFormat": "Memory Requested",
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"task-manager\",pod=~\"postgres-.*\",container=\"postgres\"}) by (pod)",
+              "legendFormat": "{{pod}}",
               "refId": "A"
-            },
-            {
-              "expr": "sum(kube_pod_container_resource_limits{namespace=\"task-manager\",resource=\"memory\"})",
-              "legendFormat": "Memory Limit",
-              "refId": "B"
-            },
-            {
-              "expr": "sum(container_memory_working_set_bytes{namespace=\"task-manager\",pod!=\"\"})",
-              "legendFormat": "Memory Usage",
-              "refId": "C"
             }
           ],
-          "title": "Cluster Memory Request / Limit / Usage",
+          "title": "DB Memory Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 7,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "max(kube_pod_container_status_ready{namespace=\"task-manager\",pod=~\"postgres-.*\",container=\"postgres\"})",
+              "legendFormat": "postgres ready",
+              "refId": "A"
+            }
+          ],
+          "title": "DB Ready Status",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 8,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"task-manager\",pod=~\"postgres-.*\",container=\"postgres\"})",
+              "legendFormat": "postgres restarts",
+              "refId": "A"
+            }
+          ],
+          "title": "DB Restart Count",
           "type": "timeseries"
         }
       ],
       "refresh": "10s",
       "schemaVersion": 39,
       "style": "dark",
-      "tags": ["task-manager"],
+      "tags": ["task-manager", "app", "database"],
       "templating": {"list": []},
       "time": {"from": "now-15m", "to": "now"},
       "timepicker": {},
       "timezone": "browser",
-      "title": "Task Manager Overview",
+      "title": "Task Manager App + DB Overview",
       "uid": "task-manager-overview",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }
 ---

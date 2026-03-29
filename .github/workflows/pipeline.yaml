@@ -170,7 +170,7 @@ jobs:
         run: |
           mkdir -p k6-results
           kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
-          # Create a helper pod that mounts the PVC and outputs the files
+          # Create a helper pod that mounts the PVC and stays running for kubectl cp
           cat > /tmp/k6-helper-pod.yaml <<'EOF'
           apiVersion: v1
           kind: Pod
@@ -184,10 +184,7 @@ jobs:
               command:
               - /bin/sh
               - -c
-              - |
-                cat /results/summary.json
-                echo "---K6-LOG---"
-                cat /results/k6.log
+              - sleep 300
               volumeMounts:
               - name: k6-results
                 mountPath: /results
@@ -199,18 +196,13 @@ jobs:
           EOF
           
           kubectl apply -f /tmp/k6-helper-pod.yaml
-          kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Succeeded pod/k6-results-helper --timeout=120s
-          
-          # Get the output
-          HELPER_OUTPUT=$(kubectl -n task-manager logs k6-results-helper 2>/dev/null)
-          SUMMARY_JSON=$(echo "$HELPER_OUTPUT" | sed '/^---K6-LOG---$/q' | sed '$ d')
-          K6_LOG=$(echo "$HELPER_OUTPUT" | sed -n '/^---K6-LOG---$/,$p' | tail -n +2)
+          kubectl -n task-manager wait --for=condition=Ready pod/k6-results-helper --timeout=120s
 
-          test -n "$SUMMARY_JSON"
-          test -n "$K6_LOG"
-          
-          echo "$SUMMARY_JSON" > k6-results/summary.json
-          echo "$K6_LOG" > k6-results/k6.log
+          kubectl -n task-manager cp k6-results-helper:/results/summary.json k6-results/summary.json
+          kubectl -n task-manager cp k6-results-helper:/results/k6.log k6-results/k6.log
+
+          test -s k6-results/summary.json
+          test -s k6-results/k6.log
           
           # Cleanup
           kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
