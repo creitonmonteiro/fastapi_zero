@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: k6-results-pvc
+  namespace: task-manager
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -27,7 +39,7 @@ spec:
               k6 run
               -o experimental-prometheus-rw=http://prometheus-service.task-manager.svc.cluster.local:9090/api/v1/write
               --summary-export=/results/summary.json
-              /scripts/users-create-get.js
+              /scripts/users-create-get.js 2>&1 | tee /results/k6.log
           volumeMounts:
             - name: k6-script
               mountPath: /scripts
@@ -38,4 +50,5 @@ spec:
           configMap:
             name: k6-users-script
         - name: k6-results
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: k6-results-pvc

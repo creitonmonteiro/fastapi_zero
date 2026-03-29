@@ -160,21 +160,56 @@ jobs:
         run: |
           kubectl -n task-manager delete job k6-users-load --ignore-not-found=true
           kubectl -n task-manager delete configmap k6-users-script --ignore-not-found=true
+          kubectl -n task-manager delete pvc k6-results-pvc --ignore-not-found=true
           kubectl -n task-manager create configmap k6-users-script \
             --from-file=users-create-get.js=loadtests/k6/users-create-get.js
           kubectl apply -f monitoring/k6-users-job.yaml
           kubectl -n task-manager wait --for=condition=Complete job/k6-users-load --timeout=900s
 
-      - name: Collect k6 results from job pod
+      - name: Collect k6 results from PVC via helper pod
         run: |
-          POD_NAME=$(kubectl -n task-manager get pod -l job-name=k6-users-load -o jsonpath='{.items[0].metadata.name}')
           mkdir -p k6-results
-          kubectl -n task-manager cp "$POD_NAME:/results/summary.json" "k6-results/summary.json"
-          kubectl -n task-manager logs "$POD_NAME" > k6-results/k6.log
-
-      - name: Convert k6 summary JSON to HTML (k6-reporter)
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.cjs -o k6-results/k6-reporter.cjs
+          # Create a helper pod that mounts the PVC and outputs the files
+          cat > /tmp/k6-helper-pod.yaml <<'EOF'
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: k6-results-helper
+            namespace: task-manager
+          spec:
+            containers:
+            - name: helper
+              image: busybox:1.36
+              command:
+              - /bin/sh
+              - -c
+              - |
+                cat /results/summary.json
+                echo "---K6-LOG---"
+                cat /results/k6.log
+              volumeMounts:
+              - name: k6-results
+                mountPath: /results
+            volumes:
+            - name: k6-results
+              persistentVolumeClaim:
+                claimName: k6-results-pvc
+            restartPolicy: Never
+          EOF
+          
+          kubectl apply -f /tmp/k6-helper-pod.yaml
+          kubectl -n task-manager wait --for=condition=Ready pod/k6-results-helper --timeout=30s || true
+          
+          # Get the output
+          HELPER_OUTPUT=$(kubectl -n task-manager logs k6-results-helper 2>/dev/null)
+          SUMMARY_JSON=$(echo "$HELPER_OUTPUT" | sed '/^---K6-LOG---$/q' | sed '$ d')
+          K6_LOG=$(echo "$HELPER_OUTPUT" | sed -n '/^---K6-LOG---$/,$p' | tail -n +2)
+          
+          echo "$SUMMARY_JSON" > k6-results/summary.json
+          echo "$K6_LOG" > k6-results/k6.log
+          
+          # Cleanup
+          kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
           node <<'NODE'
           const fs = require('fs')
           const path = require('path')
