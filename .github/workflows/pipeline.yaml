@@ -283,21 +283,21 @@ jobs:
       - name: Convert k6 summary JSON to HTML
         run: |
           test -s k6-results/summary.json
-          curl -fsSL https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.cjs -o k6-results/k6-reporter.cjs
-          test -s k6-results/k6-reporter.cjs
+          npm init -y >/dev/null 2>&1
+          npm install --no-save k6-reporter@3
           node <<'NODE'
           const fs = require('fs')
-          const path = require('path')
+          const { htmlReport } = require('k6-reporter')
 
-          const reporter = require(path.resolve('k6-results/k6-reporter.cjs'))
           const data = JSON.parse(fs.readFileSync('k6-results/summary.json', 'utf8'))
-          const html = reporter.htmlReport(data, {
+          const html = htmlReport(data, {
             title: 'K6 Users Create/Get - Pipeline Report',
             theme: 'default',
           })
 
           fs.writeFileSync('k6-results/summary.html', html)
           NODE
+          test -s k6-results/summary.html
 
       - name: Upload k6 artifacts
         uses: actions/upload-artifact@v4
