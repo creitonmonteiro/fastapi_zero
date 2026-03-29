@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -164,9 +168,30 @@ jobs:
             --from-file=users-create-get.js=loadtests/k6/users-create-get.js
           kubectl apply -f monitoring/k6-users-job.yaml
           kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Bound pvc/k6-results-pvc --timeout=180s
+
+          # Guard against short API timing gaps/race conditions.
+          for i in {1..18}; do
+            if kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+
+          if ! kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+            echo "k6 job not found after apply"
+            kubectl -n task-manager get jobs
+            exit 1
+          fi
+
           for i in {1..90}; do
-            complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
-            failed=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')
+            complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+            failed=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+
+            if ! kubectl -n task-manager get job k6-users-load >/dev/null 2>&1; then
+              echo "k6 job disappeared while waiting"
+              kubectl -n task-manager get jobs
+              exit 1
+            fi
 
             if [ "$complete" = "True" ]; then
               echo "k6 job completed successfully"
@@ -184,7 +209,7 @@ jobs:
             sleep 10
           done
 
-          complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
+          complete=$(kubectl -n task-manager get job k6-users-load -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
           if [ "$complete" != "True" ]; then
             echo "k6 job did not complete within expected time"
             kubectl -n task-manager describe job k6-users-load
