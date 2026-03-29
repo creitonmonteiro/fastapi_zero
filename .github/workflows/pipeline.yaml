@@ -163,11 +163,25 @@ jobs:
       - name: Prepare and run k6 load test inside cluster
         run: |
           kubectl -n task-manager delete job k6-users-load --ignore-not-found=true
+          kubectl -n task-manager delete pod k6-results-helper --ignore-not-found=true
+          kubectl -n task-manager delete pod -l job-name=k6-users-load --ignore-not-found=true
           kubectl -n task-manager delete configmap k6-users-script --ignore-not-found=true
+
+          if kubectl -n task-manager get pvc k6-results-pvc >/dev/null 2>&1; then
+            deleting=$(kubectl -n task-manager get pvc k6-results-pvc -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true)
+            if [ -n "$deleting" ]; then
+              echo "k6-results-pvc is terminating, forcing cleanup"
+              kubectl -n task-manager patch pvc k6-results-pvc --type=merge -p '{"metadata":{"finalizers":[]}}' || true
+              kubectl -n task-manager delete pvc k6-results-pvc --ignore-not-found=true || true
+              kubectl -n task-manager wait --for=delete pvc/k6-results-pvc --timeout=180s || true
+            fi
+          fi
+
           kubectl -n task-manager create configmap k6-users-script \
             --from-file=users-create-get.js=loadtests/k6/users-create-get.js
-          kubectl apply -f monitoring/k6-users-job.yaml
+          kubectl apply -f monitoring/k6-users-pvc.yaml
           kubectl -n task-manager wait --for=jsonpath='{.status.phase}'=Bound pvc/k6-results-pvc --timeout=180s
+          kubectl apply -f monitoring/k6-users-job.yaml
 
           # Guard against short API timing gaps/race conditions.
           for i in {1..18}; do
