@@ -283,7 +283,7 @@ jobs:
       - name: Convert k6 summary JSON to HTML
         run: |
           test -s k6-results/summary.json
-          curl -fsSL https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js -o k6-results/k6-reporter.cjs
+          curl -fsSL https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.cjs -o k6-results/k6-reporter.cjs
           test -s k6-results/k6-reporter.cjs
           node <<'NODE'
           const fs = require('fs')
