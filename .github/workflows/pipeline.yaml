@@ -287,16 +287,47 @@ jobs:
           const fs = require('fs')
 
           const data = JSON.parse(fs.readFileSync('k6-results/summary.json', 'utf8'))
-          
+
           const metrics = data.metrics || {}
           const checks = data.checks || {}
-          
+
           // Extract key metrics
           const httpReqs = metrics.http_reqs?.values || {}
           const httpLatency = metrics.http_req_duration?.values || {}
           const httpErrors = metrics.http_req_failed?.values || {}
-          
-          const html = `<!DOCTYPE html>
+
+            function escapeHtml(value) {
+              return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+            }
+
+            const checksHtml = Object.keys(checks).length > 0
+              ? `
+                <div class="checks">
+                  <h2>Checks</h2>
+                  ${Object.entries(checks).map(([name, check]) => {
+                    const passed = check.passes || 0
+                    const failed = check.fails || 0
+                    const total = passed + failed
+                    const rate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0'
+                    const stateClass = failed === 0 ? 'check-pass' : 'check-fail'
+                    const stateIcon = failed === 0 ? 'PASS' : 'FAIL'
+
+                    return [
+                      '<div class="check-item ' + stateClass + '">',
+                      '  <span class="check-name">' + stateIcon + ' ' + escapeHtml(name) + '</span>',
+                      '  <span class="check-rate">' + rate + '% (' + passed + '/' + total + ')</span>',
+                      '</div>',
+                    ].join('\n')
+                  }).join('\n')}
+                </div>`
+              : ''
+
+            const html = `<!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8">
@@ -326,9 +357,9 @@ jobs:
           </head>
           <body>
             <div class="container">
-              <h1>🚀 K6 Load Test Report</h1>
+              <h1>K6 Load Test Report</h1>
               <div class="timestamp">Generated: ${new Date(data.state?.endTime || Date.now()).toLocaleString()}</div>
-              
+
               <div class="metrics-grid">
                 <div class="metric-card">
                   <div class="metric-label">Total Requests</div>
@@ -348,34 +379,19 @@ jobs:
                 </div>
                 <div class="metric-card">
                   <div class="metric-label">P95 Latency</div>
-                  <div class="metric-value">${(httpLatency.p(95) || 0).toFixed(0)}<span class="metric-unit">ms</span></div>
+                  <div class="metric-value">${(httpLatency['p(95)'] || 0).toFixed(0)}<span class="metric-unit">ms</span></div>
                 </div>
                 <div class="metric-card">
                   <div class="metric-label">Failed Requests</div>
-                  <div class="metric-value">${(httpErrors.fails || 0).toLocaleString()}</div>
+                  <div class="metric-value">${(httpErrors.count || 0).toLocaleString()}</div>
                 </div>
               </div>
-              
-              ${Object.keys(checks).length > 0 ? `
-              <div class="checks">
-                <h2>Checks</h2>
-                ${Object.entries(checks).map(([name, check]) => {
-                  const passed = check.passes || 0
-                  const failed = check.fails || 0
-                  const total = passed + failed
-                  const rate = total > 0 ? ((passed / total) * 100).toFixed(1) : 0
-                  const isPassing = failed === 0
-                  return \`<div class="check-item \${isPassing ? 'check-pass' : 'check-fail'}">
-                    <span class="check-name">\${isPassing ? '✓' : '✗'} \${name}</span>
-                    <span class="check-rate">\${rate}% (\${passed}/\${total})</span>
-                  </div>\`
-                }).join('')}
-              </div>
-              \` : ''}
+
+              ${checksHtml}
             </div>
           </body>
           </html>`
-          
+
           fs.writeFileSync('k6-results/summary.html', html)
           console.log('HTML report generated: k6-results/summary.html')
           NODE
